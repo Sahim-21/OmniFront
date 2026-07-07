@@ -16,7 +16,10 @@ import {
   Database,
   Terminal,
   Layers,
-  Cpu
+  Cpu,
+  Menu,
+  PanelLeftClose,
+  PanelRightClose
 } from 'lucide-react'
 
 function App() {
@@ -36,10 +39,14 @@ function App() {
   const [isRecording, setIsRecording] = useState(false)
   const [editingChatId, setEditingChatId] = useState(null)
   const [editTitleValue, setEditTitleValue] = useState('')
+  const [activeTab, setActiveTab] = useState('chat') // 'history', 'chat', 'docs'
+  const [showLeftPanel, setShowLeftPanel] = useState(true)
+  const [showRightPanel, setShowRightPanel] = useState(true)
   
   // Auto-scroll ref
   const messagesEndRef = useRef(null)
   const renameInputRef = useRef(null)
+  const fileInputRef = useRef(null)
 
   // Scroll to bottom when messages update or loading state changes
   useEffect(() => {
@@ -155,6 +162,27 @@ The offline engine synthesized this response entirely on-device. Let me know if 
     setActiveDocuments(prev => prev.filter(doc => doc.id !== id))
   }
 
+  const handleFileAttach = (e) => {
+    const files = Array.from(e.target.files)
+    if (files.length === 0) return
+
+    const newDocs = files.map((file, index) => {
+      const sizeKB = file.size / 1024
+      const sizeStr = sizeKB >= 1024 
+        ? `${(sizeKB / 1024).toFixed(1)} MB` 
+        : `${Math.round(sizeKB)} KB`
+      return {
+        id: `doc-${Date.now()}-${index}`,
+        name: file.name,
+        size: sizeStr
+      }
+    })
+
+    setActiveDocuments(prev => [...prev, ...newDocs])
+    // Reset file input so the same file can be re-selected
+    e.target.value = ''
+  }
+
   const handleMicClick = () => {
     setIsRecording(!isRecording)
     if (!isRecording) {
@@ -171,24 +199,61 @@ The offline engine synthesized this response entirely on-device. Let me know if 
   }
 
   return (
-    <div className="w-screen h-screen bg-[#0f1115] p-6 overflow-hidden flex flex-col relative text-[#e2e8f0] select-none">
+    <div className="w-screen h-screen bg-[#0f1115] p-3 md:p-6 overflow-hidden flex flex-col relative text-[#e2e8f0] select-none">
       
       {/* Background Ambient Glows */}
-      <div className="absolute top-10 left-10 w-[450px] h-[450px] rounded-full bg-indigo-500/10 blur-[130px] pointer-events-none ambient-glow-1"></div>
-      <div className="absolute bottom-10 right-10 w-[450px] h-[450px] rounded-full bg-emerald-500/8 blur-[130px] pointer-events-none ambient-glow-2"></div>
+      <div className="absolute top-10 left-10 w-[250px] md:w-[450px] h-[250px] md:h-[450px] rounded-full bg-indigo-500/10 blur-[80px] md:blur-[130px] pointer-events-none ambient-glow-1"></div>
+      <div className="absolute bottom-10 right-10 w-[250px] md:w-[450px] h-[250px] md:h-[450px] rounded-full bg-emerald-500/8 blur-[80px] md:blur-[130px] pointer-events-none ambient-glow-2"></div>
+
+      {/* Mobile Tab Bar */}
+      <div className="flex md:hidden items-center gap-1 mb-3 z-20 bg-[#161920]/60 backdrop-blur-xl border border-white/5 rounded-2xl p-1.5">
+        <button
+          onClick={() => setActiveTab('history')}
+          className={`flex-1 flex items-center justify-center gap-2 py-2.5 rounded-xl text-xs font-semibold tracking-wide transition-all duration-300 cursor-pointer ${
+            activeTab === 'history'
+              ? 'bg-emerald-500/15 text-emerald-400 border border-emerald-500/25 shadow-lg shadow-emerald-500/5'
+              : 'text-white/50 hover:text-white/70 border border-transparent'
+          }`}
+        >
+          <MessageSquare className="w-3.5 h-3.5" />
+          History
+        </button>
+        <button
+          onClick={() => setActiveTab('chat')}
+          className={`flex-1 flex items-center justify-center gap-2 py-2.5 rounded-xl text-xs font-semibold tracking-wide transition-all duration-300 cursor-pointer ${
+            activeTab === 'chat'
+              ? 'bg-emerald-500/15 text-emerald-400 border border-emerald-500/25 shadow-lg shadow-emerald-500/5'
+              : 'text-white/50 hover:text-white/70 border border-transparent'
+          }`}
+        >
+          <Bot className="w-3.5 h-3.5" />
+          Chat
+        </button>
+        <button
+          onClick={() => setActiveTab('docs')}
+          className={`flex-1 flex items-center justify-center gap-2 py-2.5 rounded-xl text-xs font-semibold tracking-wide transition-all duration-300 cursor-pointer ${
+            activeTab === 'docs'
+              ? 'bg-emerald-500/15 text-emerald-400 border border-emerald-500/25 shadow-lg shadow-emerald-500/5'
+              : 'text-white/50 hover:text-white/70 border border-transparent'
+          }`}
+        >
+          <FileText className="w-3.5 h-3.5" />
+          Docs
+        </button>
+      </div>
 
       {/* Main Workspace Frame */}
-      <div className="w-full h-full flex gap-6 z-10 overflow-hidden relative pb-28">
+      <div className="w-full h-full flex gap-3 md:gap-6 z-10 overflow-hidden relative pb-20 md:pb-28">
         
         {/* LEFT PANEL: Chat History */}
-        <div className="w-80 flex flex-col bg-[#161920]/45 backdrop-blur-2xl border border-white/5 shadow-2xl rounded-3xl p-5 select-none transition-all duration-500 hover:border-white/10">
+        <div className={`${activeTab === 'history' ? 'flex' : 'hidden'} ${showLeftPanel ? 'md:flex' : 'md:hidden'} w-full md:w-80 flex-col bg-[#161920]/45 backdrop-blur-2xl border border-white/5 shadow-2xl rounded-3xl p-4 md:p-5 select-none transition-all duration-500 hover:border-white/10`}>
           {/* Logo / Brand */}
           <div className="flex items-center gap-3 mb-6 px-1">
             <div className="w-8 h-8 rounded-xl bg-gradient-to-tr from-emerald-500 to-indigo-500 flex items-center justify-center shadow-lg shadow-emerald-500/10">
               <Cpu className="w-4.5 h-4.5 text-white" />
             </div>
             <div>
-              <span className="font-semibold text-sm tracking-wide bg-gradient-to-r from-white to-white/70 bg-clip-text text-transparent">Antigravity AI</span>
+              <span className="font-semibold text-sm tracking-wide bg-gradient-to-r from-white to-white/70 bg-clip-text text-transparent">OmniRAG</span>
               <span className="block text-[10px] text-emerald-400/80 font-mono tracking-wider font-semibold">LOCAL ENGINE</span>
             </div>
           </div>
@@ -277,11 +342,23 @@ The offline engine synthesized this response entirely on-device. Let me know if 
         </div>
 
         {/* CENTER PANEL: Chat Space */}
-        <div className="flex-1 flex flex-col bg-[#161920]/25 backdrop-blur-md border border-white/5 rounded-3xl p-5 shadow-2xl relative overflow-hidden">
+        <div className={`${activeTab === 'chat' ? 'flex' : 'hidden'} md:flex flex-1 flex-col bg-[#161920]/25 backdrop-blur-md border border-white/5 rounded-3xl p-3 md:p-5 shadow-2xl relative overflow-hidden`}>
           
           {/* Feed Header */}
           <div className="flex items-center justify-between pb-4 border-b border-white/5 mb-5 px-1">
             <div className="flex items-center gap-2">
+              {/* Toggle Left Panel Button (desktop only) */}
+              <button
+                onClick={() => setShowLeftPanel(prev => !prev)}
+                className={`hidden md:flex p-1.5 rounded-lg transition-all duration-200 cursor-pointer ${
+                  showLeftPanel
+                    ? 'text-white/30 hover:text-emerald-400 hover:bg-white/5'
+                    : 'text-emerald-400 bg-emerald-500/10 border border-emerald-500/20'
+                }`}
+                title={showLeftPanel ? 'Hide chat history' : 'Show chat history'}
+              >
+                <PanelLeftClose className="w-4 h-4" />
+              </button>
               <span className="text-xs font-semibold tracking-wider text-white/80">
                 {activeChatId 
                   ? chatHistory.find(c => c.id === activeChatId)?.title || 'Chat' 
@@ -292,6 +369,18 @@ The offline engine synthesized this response entirely on-device. Let me know if 
             <div className="flex items-center gap-2">
               <span className="inline-block w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse"></span>
               <span className="text-[10px] font-semibold text-emerald-400 font-mono tracking-wider">OFFLINE SECURITY ACTIVE</span>
+              {/* Toggle Right Panel Button (desktop only) */}
+              <button
+                onClick={() => setShowRightPanel(prev => !prev)}
+                className={`hidden md:flex p-1.5 rounded-lg transition-all duration-200 cursor-pointer ${
+                  showRightPanel
+                    ? 'text-white/30 hover:text-emerald-400 hover:bg-white/5'
+                    : 'text-emerald-400 bg-emerald-500/10 border border-emerald-500/20'
+                }`}
+                title={showRightPanel ? 'Hide documents' : 'Show documents'}
+              >
+                <PanelRightClose className="w-4 h-4" />
+              </button>
             </div>
           </div>
 
@@ -378,7 +467,7 @@ The offline engine synthesized this response entirely on-device. Let me know if 
         </div>
 
         {/* RIGHT PANEL: Vector Store/Files */}
-        <div className="w-80 flex flex-col bg-[#161920]/45 backdrop-blur-2xl border border-white/5 shadow-2xl rounded-3xl p-5 select-none transition-all duration-500 hover:border-white/10">
+        <div className={`${activeTab === 'docs' ? 'flex' : 'hidden'} ${showRightPanel ? 'md:flex' : 'md:hidden'} w-full md:w-80 flex-col bg-[#161920]/45 backdrop-blur-2xl border border-white/5 shadow-2xl rounded-3xl p-4 md:p-5 select-none transition-all duration-500 hover:border-white/10`}>
           <div className="px-1 text-[10px] font-bold text-white/30 tracking-widest uppercase mb-4">
             ACTIVE DOCUMENTS (RAG context)
           </div>
@@ -444,12 +533,22 @@ The offline engine synthesized this response entirely on-device. Let me know if 
       {/* BOTTOM FLOATING INPUT DOCK */}
       <form 
         onSubmit={handleSend}
-        className="absolute bottom-6 left-1/2 -translate-x-1/2 w-full max-w-2xl bg-[#1d222e]/80 border border-white/10 backdrop-blur-xl rounded-full p-2.5 pl-4 pr-3.5 shadow-[0_20px_50px_rgba(0,0,0,0.6)] flex items-center gap-3 transition-all duration-300 focus-within:border-emerald-500/40 focus-within:shadow-[0_20px_50px_rgba(16,185,129,0.15)] z-20"
+        className={`absolute bottom-3 md:bottom-6 left-1/2 -translate-x-1/2 w-[calc(100%-1.5rem)] md:w-full max-w-2xl bg-[#1d222e]/80 border border-white/10 backdrop-blur-xl rounded-full p-2 md:p-2.5 pl-3 md:pl-4 pr-2.5 md:pr-3.5 shadow-[0_20px_50px_rgba(0,0,0,0.6)] items-center gap-2 md:gap-3 transition-all duration-300 focus-within:border-emerald-500/40 focus-within:shadow-[0_20px_50px_rgba(16,185,129,0.15)] z-20 ${activeTab === 'chat' ? 'flex' : 'hidden'} md:flex`}
       >
+        {/* Hidden file input */}
+        <input
+          ref={fileInputRef}
+          type="file"
+          multiple
+          accept=".pdf,.txt,.md,.csv,.json,.py,.js,.ts,.jsx,.tsx,.java,.cpp,.c,.h,.html,.css,.xml,.yaml,.yml,.doc,.docx"
+          onChange={handleFileAttach}
+          className="hidden"
+        />
+
         {/* Attachment Icon */}
         <button 
           type="button"
-          onClick={() => alert("File attachment simulation: select local PDF, TXT or code files to index into local vector store.")}
+          onClick={() => fileInputRef.current?.click()}
           className="p-2 text-white/40 hover:text-emerald-400 hover:bg-white/5 rounded-full transition-all duration-200 active:scale-95 cursor-pointer"
           title="Add files to context"
         >
