@@ -1,4 +1,7 @@
 import { useState, useRef, useEffect } from 'react'
+import ModelSelector from './components/ModelSelector.jsx'
+import { SELECT_MODEL_PROMPT, composeLocalReply } from './models/composeReply.js'
+import { resolveSelectedModel } from './models/registry.js'
 import { 
   MessageSquare, 
   Plus, 
@@ -42,6 +45,8 @@ function App() {
   const [activeTab, setActiveTab] = useState('chat') // 'history', 'chat', 'docs'
   const [showLeftPanel, setShowLeftPanel] = useState(true)
   const [showRightPanel, setShowRightPanel] = useState(true)
+  const [selectedModelId, setSelectedModelId] = useState(null)
+  const [modelPrompt, setModelPrompt] = useState('')
   
   // Auto-scroll ref
   const messagesEndRef = useRef(null)
@@ -66,6 +71,14 @@ function App() {
     e.preventDefault()
     if (!input.trim() || isLoading) return
 
+    const model = resolveSelectedModel(selectedModelId)
+    if (!model) {
+      setModelPrompt(SELECT_MODEL_PROMPT)
+      return
+    }
+
+    setModelPrompt('')
+
     const userMessage = {
       id: Date.now().toString(),
       sender: 'user',
@@ -75,36 +88,18 @@ function App() {
 
     setMessages(prev => [...prev, userMessage])
     const query = input.trim()
+    const documentCount = activeDocuments.length
     setInput('')
     setIsLoading(true)
 
-    // Simulate RAG offline response
+    // Local simulated reply. IEEE Model is the only registered pipeline, and it stays in-browser.
     setTimeout(() => {
-      let aiResponseText = ''
-      const lowerQuery = query.toLowerCase()
-
-      if (lowerQuery.includes('architecture') || lowerQuery.includes('doctify')) {
-        aiResponseText = `I searched your local vector store for references to **Doctify**. 
-
-Based on **Doctify_Architecture.pdf** (Section 3.2: System Topology):
-- The system uses a federated ingestion model.
-- Vector embeddings are generated locally using a lightweight transformer (e.g., \`all-MiniLM-L6-v2\`).
-- Storage is managed on-device via SQLite and HNSW indexing for rapid retrieval.
-
-Would you like me to extract the API contract details from page 14 of the architecture PDF?`
-      } else if (lowerQuery.includes('hello') || lowerQuery.includes('hi')) {
-        aiResponseText = `Greetings! I am your local offline AI. I have vectorized **${activeDocuments.length} active document(s)** in your workspace. You can query them directly without sending any data to the cloud.`
-      } else {
-        aiResponseText = `Query received: *"${query}"*
-Searching local index... **Found 3 relevant chunks** in **Doctify_Architecture.pdf**.
-
-The offline engine synthesized this response entirely on-device. Let me know if you would like to search for other topics or refine the local retrieval chunk settings.`
-      }
+      const reply = composeLocalReply({ query, documentCount, model })
 
       const aiMessage = {
         id: (Date.now() + 1).toString(),
         sender: 'ai',
-        text: aiResponseText,
+        text: reply.text,
         timestamp: new Date()
       }
 
@@ -345,8 +340,8 @@ The offline engine synthesized this response entirely on-device. Let me know if 
         <div className={`${activeTab === 'chat' ? 'flex' : 'hidden'} md:flex flex-1 flex-col bg-[var(--surface-glass-25)] backdrop-blur-md border border-[var(--border-subtle)] rounded-3xl p-3 md:p-5 shadow-2xl relative overflow-hidden`}>
           
           {/* Feed Header */}
-          <div className="flex items-center justify-between pb-4 border-b border-[var(--border-subtle)] mb-5 px-1">
-            <div className="flex items-center gap-2">
+          <div className="flex items-center justify-between gap-2 flex-wrap pb-4 border-b border-[var(--border-subtle)] mb-5 px-1">
+            <div className="flex items-center gap-2 min-w-0">
               {/* Toggle Left Panel Button (desktop only) */}
               <button
                 onClick={() => setShowLeftPanel(prev => !prev)}
@@ -359,11 +354,18 @@ The offline engine synthesized this response entirely on-device. Let me know if 
               >
                 <PanelLeftClose className="w-4 h-4" />
               </button>
-              <span className="text-xs font-semibold tracking-wider text-[var(--text)]">
+              <span className="text-xs font-semibold tracking-wider text-[var(--text)] truncate">
                 {activeChatId 
                   ? chatHistory.find(c => c.id === activeChatId)?.title || 'Chat' 
                   : 'Workspace'}
               </span>
+              <ModelSelector
+                selectedModelId={selectedModelId}
+                onSelect={(id) => {
+                  setSelectedModelId(id)
+                  setModelPrompt('')
+                }}
+              />
             </div>
             
             <div className="flex items-center gap-2">
@@ -529,6 +531,15 @@ The offline engine synthesized this response entirely on-device. Let me know if 
         </div>
 
       </div>
+
+      {modelPrompt && (
+        <p
+          role="alert"
+          className={`absolute bottom-[4.75rem] md:bottom-[5.25rem] left-1/2 -translate-x-1/2 z-20 max-w-md px-3 py-1.5 rounded-full border border-[var(--border)] bg-[var(--surface)] text-[11px] font-medium text-[var(--warning)] ${activeTab === 'chat' ? 'block' : 'hidden'} md:block`}
+        >
+          {modelPrompt}
+        </p>
+      )}
 
       {/* BOTTOM FLOATING INPUT DOCK */}
       <form 
